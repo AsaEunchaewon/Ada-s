@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雅棠的保險智慧管家</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (For Cloud Syncing) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        milktea: {
+                            50: '#FAF6F0',   // 醇奶白 (背景)
+                            100: '#F4EAE1',  // 淺燕麥奶
+                            200: '#EAD5C3',  // 溫潤奶茶
+                            300: '#D5B496',  // 焙烤榛果
+                            500: '#A77D5C',  // 焙茶褐
+                            700: '#7A5233',  // 黑糖深褐
+                            800: '#53351C',  // 濃郁極深褐
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #FAF6F0;
+            font-family: 'Noto Sans TC', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .custom-shadow {
+            box-shadow: 0 10px 30px -10px rgba(122, 82, 51, 0.12);
+        }
+        /* 美化滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FAF6F0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #EAD5C3;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D5B496;
+        }
+        /* 輕微淡入動畫 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.35s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="text-milktea-800 min-h-screen pb-12">
+
+    <!-- 雲端同步狀態列 -->
+    <div id="sync-banner" class="bg-milktea-700 text-milktea-50 text-xs px-4 py-2 flex justify-between items-center transition-all duration-300">
+        <div class="flex items-center space-x-2">
+            <span id="sync-icon" class="inline-block animate-pulse w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span id="sync-status-text">雲端智慧同步中 (手機與電腦已連線)</span>
+        </div>
+        <button onclick="triggerSyncSetup()" class="underline hover:text-milktea-200">
+            <i class="fa-solid fa-arrows-rotate mr-1"></i>設定同步帳號
+        </button>
+    </div>
+
+    <!-- 頂部綠色品牌背板 (完美還原 image.png 的高質感) -->
+    <header class="bg-gradient-to-b from-[#2E4A3F] to-[#223930] text-white px-5 pt-8 pb-10 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
+        <!-- 背景裝飾微光 -->
+        <div class="absolute -right-16 -top-16 w-48 h-48 rounded-full bg-emerald-700 opacity-20 blur-2xl"></div>
+        <div class="absolute -left-12 -bottom-12 w-36 h-36 rounded-full bg-yellow-600 opacity-10 blur-xl"></div>
+
+        <div class="max-w-4xl mx-auto">
+            <!-- 品牌標題 -->
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🌈</span>
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-wide">雅棠的保險智慧管家</h1>
+                        <p class="text-emerald-200 text-xs mt-0.5">專屬高效雲端管理系統 · 溫柔奶茶版</p>
+                    </div>
+                </div>
+                <!-- 快捷功能按鈕 -->
+                <button onclick="triggerSyncSetup()" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all active:scale-95" title="雲端同步設定">
+                    <i class="fa-solid fa-cloud text-sm text-emerald-100"></i>
+                </button>
+            </div>
+
+            <!-- 導覽頁籤 (比照原圖白色圓角高質感設計) -->
+            <nav class="flex space-x-2 overflow-x-auto pb-2 scrollbar-none">
+                <button id="tab-dashboard" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white text-[#2E4A3F] shadow-sm">
+                    <span>🏠</span> <span>總覽</span>
+                </button>
+                <button id="tab-clients" onclick="switchTab('clients')" class="px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white/10 text-emerald-100 hover:bg-white/20">
+                    <span>👥</span> <span>客戶管理</span>
+                </button>
+                <button id="tab-products" onclick="switchTab('products')" class="px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white/10 text-emerald-100 hover:bg-white/20">
+                    <span>📖</span> <span>商品百科</span>
+                </button>
+                <button id="tab-proposals" onclick="switchTab('proposals')" class="px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white/10 text-emerald-100 hover:bg-white/20">
+                    <span>📝</span> <span>建議書</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主內容區 -->
+    <main class="max-w-4xl mx-auto px-4 -mt-5">
+        
+        <!-- ================= 1. 總覽分頁 ================= -->
+        <section id="content-dashboard" class="fade-in space-y-5">
+            <!-- 歡迎語 -->
+            <div class="bg-white/60 backdrop-blur rounded-2xl p-4 flex items-center justify-between border border-milktea-100">
+                <div>
+                    <h2 class="text-base font-bold text-milktea-700">☕ 歡迎回來，雅棠！</h2>
+                    <p class="text-xs text-milktea-500">今天也是充滿溫暖與關懷的一天，加油！</p>
+                </div>
+                <div id="last-sync-time" class="text-right text-[10px] text-milktea-400">
+                    資料已與雲端同步
+                </div>
+            </div>
+
+            <!-- 八大核心數據卡片 (比照原圖設計改進) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- 卡片 1: 有效客戶數 -->
+                <div class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px]">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>👥</span>
+                        <span class="font-medium">有效客戶數</span>
+                    </div>
+                    <div class="mt-2">
+                        <span id="stat-client-count" class="text-3xl font-bold text-milktea-700">--</span>
+                        <span class="text-xs text-milktea-400 ml-1">人</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 2: 本月壽星 -->
+                <div onclick="switchTab('clients', 'birthday')" class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px] cursor-pointer hover:border-milktea-300 transition-all group">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>🎂</span>
+                        <span class="font-medium">本月壽星</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline justify-between">
+                        <div>
+                            <span id="stat-birthday-count" class="text-3xl font-bold text-milktea-700">--</span>
+                            <span class="text-xs text-milktea-400 ml-1">人</span>
+                        </div>
+                        <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all">查看</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 3: 本月業績 FYP -->
+                <div class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px]">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>💰</span>
+                        <span class="font-medium">本月 FYP 業績</span>
+                    </div>
+                    <div class="mt-2">
+                        <span id="stat-fyp" class="text-2xl font-bold text-milktea-700">$--</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 4: 建議書進度 -->
+                <div onclick="switchTab('proposals')" class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px] cursor-pointer hover:border-milktea-300 transition-all group">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>📝</span>
+                        <span class="font-medium">建議書追蹤</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline justify-between">
+                        <div>
+                            <span id="stat-proposal-count" class="text-3xl font-bold text-milktea-700">--</span>
+                            <span class="text-xs text-milktea-400 ml-1">件</span>
+                        </div>
+                        <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all">追蹤</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 5: 本月成交率 -->
+                <div class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px]">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>📈</span>
+                        <span class="font-medium">新契成交率</span>
+                    </div>
+                    <div class="mt-2">
+                        <span id="stat-conversion-rate" class="text-3xl font-bold text-[#7a5233]">--</span>
+                        <span class="text-xs text-milktea-400 ml-0.5">%</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 6: 催繳提醒 -->
+                <div onclick="switchTab('clients', 'need-pay')" class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px] cursor-pointer hover:border-milktea-300 transition-all group">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>⌛</span>
+                        <span class="font-medium">需催繳通知</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline justify-between">
+                        <div>
+                            <span id="stat-payment-warning" class="text-3xl font-bold text-rose-600">--</span>
+                            <span class="text-xs text-milktea-400 ml-1">人</span>
+                        </div>
+                        <span class="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all">查看</span>
+                    </div>
+                </div>
+
+                <!-- 卡片 7: 生存金/滿期提醒 -->
+                <div class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px]">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>🔔</span>
+                        <span class="font-medium">生存/滿期提醒</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="text-base font-bold text-amber-800">2 件待聯絡</span>
+                        <div class="text-[10px] text-milktea-400 mt-1">本週應聯繫</div>
+                    </div>
+                </div>
+
+                <!-- 卡片 8: 理賠進度追蹤 -->
+                <div class="bg-white rounded-2xl p-4 border border-milktea-100 custom-shadow flex flex-col justify-between min-h-[120px]">
+                    <div class="flex items-center space-x-1.5 text-milktea-500 text-xs">
+                        <span>📢</span>
+                        <span class="font-medium">理賠進行中</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="text-base font-bold text-emerald-700">1 案審核中</span>
+                        <div class="text-[10px] text-milktea-400 mt-1">陳○明 (骨折險)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下方區域：左側今日備忘，右側全新設計的「部門活動 + 雙進度條」 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- 左側：今日暖心行程 -->
+                <div class="bg-white rounded-2xl p-5 border border-milktea-100 custom-shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold text-milktea-700 flex items-center space-x-1.5">
+                            <span>📅</span> <span>今日關懷行程</span>
+                        </h3>
+                        <span class="text-[10px] bg-milktea-100 text-milktea-700 px-2 py-0.5 rounded-full">3 件行程</span>
+                    </div>
+                    <ul class="space-y-3">
+                        <li class="p-3 bg-amber-50/50 rounded-xl flex justify-between items-center border border-amber-100">
+                            <div>
+                                <h4 class="text-xs font-bold text-milktea-800">🎂 生日祝賀電話</h4>
+                                <p class="text-[11px] text-milktea-500 mt-1">客戶：林書豪（今天生日，記得送上暖心訊息）</p>
+                            </div>
+                            <span class="text-[10px] text-amber-700 font-medium">9:30</span>
+                        </li>
+                        <li class="p-3 bg-rose-50/50 rounded-xl flex justify-between items-center border border-rose-100">
+                            <div>
+                                <h4 class="text-xs font-bold text-rose-800">⌛ 保單續期催繳</h4>
+                                <p class="text-[11px] text-rose-500 mt-1">客戶：李阿土（已過寬限期 3 天，提醒轉帳避免失效）</p>
+                            </div>
+                            <span class="text-[10px] text-rose-700 font-medium">14:00</span>
+                        </li>
+                        <li class="p-3 bg-emerald-50/50 rounded-xl flex justify-between items-center border border-emerald-100">
+                            <div>
+                                <h4 class="text-xs font-bold text-emerald-800">🍵 理賠支票遞送</h4>
+                                <p class="text-[11px] text-emerald-600 mt-1">客戶：王美麗（順便進行保單健檢與缺口分析）</p>
+                            </div>
+                            <span class="text-[10px] text-emerald-700 font-medium">16:30</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 右側：部門活動與自訂季度目標 (支援雅棠在網頁內直接手動自訂) -->
+                <div class="bg-gradient-to-br from-[#53351C] to-[#3a2210] rounded-2xl p-5 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
+                    <!-- 背景網點微弱裝飾 -->
+                    <div class="absolute -right-12 -bottom-12 w-32 h-32 rounded-full bg-yellow-600/10 blur-xl"></div>
+                    
+                    <!-- 頂部活動標題與一鍵修改按鈕 -->
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-[11px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full text-amber-200 font-semibold flex items-center space-x-1">
+                                <span class="animate-pulse">●</span> <span id="display-event-title">載入中...</span>
+                            </span>
+                            <button onclick="openDepartmentSettings()" class="text-xs text-amber-200/80 hover:text-white transition-colors bg-white/10 px-2.5 py-1 rounded-full text-[10px] flex items-center space-x-1">
+                                <i class="fa-solid fa-pen-to-square"></i> <span>修改設定</span>
+                            </button>
+                        </div>
+                        
+                        <!-- 倒數剩餘天數 (依真實日期每天跨夜自動少一天) -->
+                        <div class="mb-4">
+                            <div class="text-3xl font-bold text-amber-100 flex items-baseline space-x-1.5">
+                                <span class="text-4xl" id="display-countdown-days">--</span>
+                                <span class="text-sm text-amber-300">天</span>
+                            </div>
+                            <div class="text-[10px] text-amber-200/60 mt-0.5" id="display-event-date">目標日期：--</div>
+                        </div>
+                    </div>
+
+                    <!-- 下方：精美雙季度目標格 (相似但不同色系，可由雅棠自訂) -->
+                    <div class="grid grid-cols-2 gap-3 mt-4 relative z-10 pt-4 border-t border-white/10">
+                        <!-- 目標 A (榛果金) -->
+                        <div class="bg-white/10 p-2.5 rounded-xl border border-white/5 flex flex-col justify-between">
+                            <div>
+                                <span id="display-targetA-name" class="text-[11px] text-amber-200 font-medium block">載入中...</span>
+                                <span class="text-xs font-bold text-white mt-1 block">
+                                    <span id="display-targetA-current">--</span> / <span id="display-targetA-max">--</span> <span id="display-targetA-unit" class="text-[10px] text-white/60">--</span>
+                                </span>
+                            </div>
+                            <!-- 輕快榛果金進度條 -->
+                            <div class="mt-2.5">
+                                <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <div id="display-targetA-bar" class="bg-amber-400 h-full rounded-full" style="width: 0%"></div>
+                                </div>
+                                <div class="text-[9px] text-right text-amber-300 mt-1 font-semibold" id="display-targetA-percent">--%</div>
+                            </div>
+                        </div>
+
+                        <!-- 目標 B (蜜桃粉) -->
+                        <div class="bg-white/10 p-2.5 rounded-xl border border-white/5 flex flex-col justify-between">
+                            <div>
+                                <span id="display-targetB-name" class="text-[11px] text-rose-300 font-medium block">載入中...</span>
+                                <span class="text-xs font-bold text-white mt-1 block">
+                                    <span id="display-targetB-current">--</span> / <span id="display-targetB-max">--</span> <span id="display-targetB-unit" class="text-[10px] text-white/60">--</span>
+                                </span>
+                            </div>
+                            <!-- 柔美蜜桃粉進度條 -->
+                            <div class="mt-2.5">
+                                <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <div id="display-targetB-bar" class="bg-rose-400 h-full rounded-full" style="width: 0%"></div>
+                                </div>
+                                <div class="text-[9px] text-right text-rose-300 mt-1 font-semibold" id="display-targetB-percent">--%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 2. 客戶管理分頁 ================= -->
+        <section id="content-clients" class="fade-in space-y-4 hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-milktea-100 custom-shadow">
+                <!-- 搜尋與快選 -->
+                <div class="relative flex-1">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-milktea-300"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" id="client-search" oninput="renderClients()" placeholder="輸入客戶姓名、電話或標籤搜尋..." class="w-full bg-milktea-50/60 pl-10 pr-4 py-2 rounded-xl text-xs text-milktea-800 placeholder-milktea-400 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all">
+                </div>
+                <!-- 功能按鈕群 -->
+                <div class="flex space-x-2 shrink-0">
+                    <button onclick="openClientModal()" class="flex-1 md:flex-initial bg-milktea-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-milktea-800 transition-colors active:scale-95 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-plus"></i> <span>新增客戶</span>
+                    </button>
+                    <button onclick="openBatchModal()" class="flex-1 md:flex-initial bg-milktea-100 text-milktea-700 text-xs font-bold px-3 py-2.5 rounded-xl hover:bg-milktea-200 transition-colors active:scale-95 flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-file-import"></i> <span>批次匯入/備份</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 客戶分類快速篩選標籤 -->
+            <div class="flex space-x-1.5 overflow-x-auto pb-1.5">
+                <button onclick="filterClients('all')" id="filter-all" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-milktea-700 text-white">
+                    全體客戶 (<span id="count-filter-all">0</span>)
+                </button>
+                <button onclick="filterClients('birthday')" id="filter-birthday" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100">
+                    🍰 本月壽星 (<span id="count-filter-birthday">0</span>)
+                </button>
+                <button onclick="filterClients('need-pay')" id="filter-need-pay" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-rose-600 border border-rose-100 hover:bg-rose-50">
+                    ⌛ 需催繳 (<span id="count-filter-need-pay">0</span>)
+                </button>
+                <button onclick="filterClients('focus')" id="filter-focus" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-amber-700 border border-amber-100 hover:bg-amber-50">
+                    🔥 重點追蹤 (<span id="count-filter-focus">0</span>)
+                </button>
+            </div>
+
+            <!-- 客戶清單 -->
+            <div id="clients-list-container" class="space-y-3">
+                <!-- 動態載入 -->
+            </div>
+        </section>
+
+        <!-- ================= 3. 商品百科分頁 ================= -->
+        <section id="content-products" class="fade-in space-y-4 hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-milktea-100 custom-shadow">
+                <div class="relative flex-1">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-milktea-300"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" id="product-search" oninput="renderProducts()" placeholder="搜尋特定保險商品名稱、代號或承保內容..." class="w-full bg-milktea-50/60 pl-10 pr-4 py-2 rounded-xl text-xs text-milktea-800 placeholder-milktea-400 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all">
+                </div>
+                <button onclick="openProductModal()" class="bg-milktea-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-milktea-800 transition-colors active:scale-95 flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-square-plus"></i> <span>新增保險商品</span>
+                </button>
+            </div>
+
+            <!-- 保險類別過濾標籤 -->
+            <div class="flex space-x-1.5 overflow-x-auto pb-1.5">
+                <button onclick="filterProducts('all')" id="prod-all" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-milktea-700 text-white">全部商品</button>
+                <button onclick="filterProducts('醫療險')" id="prod-醫療" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100">醫療實支</button>
+                <button onclick="filterProducts('重疾/防癌')" id="prod-重疾" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100">重疾/防癌</button>
+                <button onclick="filterProducts('失能/長照')" id="prod-失能" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100">失能長照</button>
+                <button onclick="filterProducts('儲蓄/壽險')" id="prod-儲蓄" class="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100">儲蓄壽險</button>
+            </div>
+
+            <!-- 商品百科清單 -->
+            <div id="products-grid-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 動態載入 -->
+            </div>
+        </section>
+
+        <!-- ================= 4. 建議書追蹤分頁 ================= -->
+        <section id="content-proposals" class="fade-in space-y-4 hidden">
+            <div class="bg-white p-5 rounded-2xl border border-milktea-100 custom-shadow">
+                <h3 class="text-sm font-bold text-milktea-700 mb-3 flex items-center space-x-1.5">
+                    <span>💡</span> <span>全新規劃建議書</span>
+                </h3>
+                <form id="proposal-form" onsubmit="addProposal(event)" class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-milktea-500 font-semibold mb-1">客戶姓名</label>
+                            <input type="text" id="prop-client" required placeholder="例如：林書豪" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs text-milktea-800 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-milktea-500 font-semibold mb-1">推廣規劃險種 (可由商品庫一鍵帶入)</label>
+                            <input type="text" id="prop-product" required placeholder="例如：守護醫生住院醫療實支實付(HSD)" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs text-milktea-800 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-milktea-500 font-semibold mb-1">預估年繳保費 (元)</label>
+                            <input type="number" id="prop-premium" required placeholder="例如：35000" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs text-milktea-800 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all">
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-2">
+                        <button type="submit" class="bg-milktea-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:bg-milktea-800 transition-colors active:scale-95 flex items-center space-x-1">
+                            <i class="fa-solid fa-paper-plane"></i> <span>新增追蹤清單</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 建議書追蹤清單 -->
+            <div class="bg-white p-5 rounded-2xl border border-milktea-100 custom-shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-milktea-700 flex items-center space-x-1.5">
+                        <span>⌛</span> <span>目前進行中與追蹤案件</span>
+                    </h3>
+                    <span id="prop-count-badge" class="text-[10px] bg-milktea-100 text-milktea-700 px-2 py-0.5 rounded-full">0 件追蹤中</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-milktea-100 text-milktea-400">
+                                <th class="py-2.5 font-semibold">客戶</th>
+                                <th class="py-2.5 font-semibold">擬投保產品</th>
+                                <th class="py-2.5 font-semibold text-right">預估保費</th>
+                                <th class="py-2.5 font-semibold text-center">狀態</th>
+                                <th class="py-2.5 font-semibold text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proposals-table-body" class="divide-y divide-milktea-50 text-milktea-800">
+                            <!-- 動態載入 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- =================================== -->
+    <!--          彈出視窗系列 (Modals)       -->
+    <!-- =================================== -->
+
+    <!-- Modal 1: 雲端同步設定 (解決手機電腦互通的核心) -->
+    <div id="sync-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-milktea-700 flex items-center space-x-1.5">
+                    <span>☁️</span> <span>雅棠的專屬同步雲</span>
+                </h3>
+                <button onclick="closeSyncModal()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-milktea-500 leading-relaxed">
+                在下方輸入您自訂的「同步家庭代碼」(比如：<span class="font-semibold text-milktea-700">yatan1688</span>)。手機和電腦只要輸入一模一樣的代碼，不論在哪邊新增或修改客戶，兩邊都會**完全自動同步**喔！
+            </p>
+            <div class="space-y-2">
+                <label class="block text-[11px] text-milktea-500 font-semibold">您的同步代碼 (建議使用好記的英文+數字)</label>
+                <input type="text" id="sync-room-id" placeholder="例如：yatan168" class="w-full bg-milktea-50 px-3.5 py-2.5 rounded-xl text-xs text-milktea-800 border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white transition-all font-mono font-bold tracking-wider">
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeSyncModal()" class="flex-1 bg-milktea-50 hover:bg-milktea-100 text-milktea-600 font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    先不連線 (只存在本機)
+                </button>
+                <button onclick="saveSyncCode()" class="flex-1 bg-milktea-700 hover:bg-milktea-800 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    確認連線並同步
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: 修改客戶資訊與新增客戶 -->
+    <div id="client-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center">
+                <h3 id="client-modal-title" class="text-base font-bold text-milktea-700">新增客戶資訊</h3>
+                <button onclick="closeClientModal()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="client-form" onsubmit="saveClient(event)" class="space-y-3">
+                <input type="hidden" id="edit-client-index">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">姓名</label>
+                        <input type="text" id="input-client-name" required class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">電話</label>
+                        <input type="text" id="input-client-phone" required class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">身分證字號</label>
+                        <input type="text" id="input-client-id" placeholder="例如：A223456789" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">生日 (月-日)</label>
+                        <input type="text" id="input-client-birthday" placeholder="如：05-20" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">保單繳費狀態</label>
+                        <select id="input-client-status" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                            <option value="正常繳費">正常繳費</option>
+                            <option value="需續期催繳">需續期催繳</option>
+                            <option value="寬限期提醒">寬限期提醒</option>
+                            <option value="暫停中/停效">暫停中/停效</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">客戶群組標籤 (用 | 分隔)</label>
+                        <input type="text" id="input-client-tags" placeholder="VIP客戶|重點追蹤|定期儲蓄" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">備註/保單總覽健檢紀錄</label>
+                    <textarea id="input-client-memo" rows="3" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white" placeholder="富邦終身醫療、國泰實支實付、重大傷病缺口 50 萬。預計 9 月談退休規劃..."></textarea>
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeClientModal()" class="flex-1 bg-milktea-50 hover:bg-milktea-100 text-milktea-600 font-bold py-2.5 rounded-xl text-xs transition-colors">取消</button>
+                    <button type="submit" class="flex-1 bg-milktea-700 hover:bg-milktea-800 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">確認儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: 部門活動與雙進度條自訂修改設定 -->
+    <div id="dept-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-milktea-700">📢 編輯活動與季度目標</h3>
+                <button onclick="closeDepartmentSettings()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveDepartmentSettings(event)" class="space-y-4 text-xs text-milktea-800">
+                <!-- 部門活動 -->
+                <div class="bg-milktea-50/50 p-3.5 rounded-xl border border-milktea-100 space-y-2">
+                    <h4 class="font-bold text-milktea-700">📢 部門活動快報</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">活動名稱</label>
+                            <input type="text" id="setup-event-title" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">目標截止日期</label>
+                            <input type="date" id="setup-event-date" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 目標 A (榛果金) -->
+                <div class="bg-amber-50/50 p-3.5 rounded-xl border border-amber-100 space-y-2">
+                    <h4 class="font-bold text-amber-800">🎯 季度目標 1 (榛果金)</h4>
+                    <div class="grid grid-cols-4 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] text-milktea-500 mb-1">目標項目</label>
+                            <input type="text" id="setup-targetA-name" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">已達成</label>
+                            <input type="number" id="setup-targetA-current" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">總目標</label>
+                            <input type="number" id="setup-targetA-max" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">計量單位 (例如: 元、件、人)</label>
+                            <input type="text" id="setup-targetA-unit" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 目標 B (蜜桃粉) -->
+                <div class="bg-rose-50/50 p-3.5 rounded-xl border border-rose-100 space-y-2">
+                    <h4 class="font-bold text-rose-800">🎯 季度目標 2 (蜜桃粉)</h4>
+                    <div class="grid grid-cols-4 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] text-milktea-500 mb-1">目標項目</label>
+                            <input type="text" id="setup-targetB-name" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">已達成</label>
+                            <input type="number" id="setup-targetB-current" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">總目標</label>
+                            <input type="number" id="setup-targetB-max" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-milktea-500 mb-1">計量單位</label>
+                            <input type="text" id="setup-targetB-unit" required class="w-full bg-white px-3 py-2 rounded-xl text-xs border border-milktea-100">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeDepartmentSettings()" class="flex-1 bg-milktea-50 text-milktea-600 font-bold py-2.5 rounded-xl text-xs">取消</button>
+                    <button type="submit" class="flex-1 bg-milktea-700 text-white font-bold py-2.5 rounded-xl text-xs">儲存設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 4: 健檢與完整備忘紀錄顯示 -->
+    <div id="memo-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in">
+            <div class="flex justify-between items-center">
+                <h3 id="memo-modal-name" class="text-base font-bold text-milktea-700">客戶健檢紀錄</h3>
+                <button onclick="closeMemoModal()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="bg-milktea-50 p-4 rounded-xl">
+                <p id="memo-modal-content" class="text-xs text-milktea-700 whitespace-pre-line leading-relaxed">尚無任何健檢與備忘備註紀錄。</p>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="closeMemoModal()" class="flex-1 bg-milktea-100 hover:bg-milktea-200 text-milktea-700 font-bold py-2.5 rounded-xl text-xs transition-colors">關閉</button>
+                <button id="memo-edit-shortcut-btn" class="flex-1 bg-milktea-700 hover:bg-milktea-800 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">修改資料</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 5: 批次匯入/備份文字窗 -->
+    <div id="batch-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-milktea-700">📥 批次匯入/匯出備份</h3>
+                <button onclick="closeBatchModal()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-[11px] text-milktea-500 leading-normal">
+                您可以在此處批次更新，或直接全選複製這段文字，寄至您的電子信箱或傳在 LINE 當作最安心的資料備份！
+            </p>
+            <textarea id="batch-text" rows="10" class="w-full bg-mono bg-milktea-50 p-3 rounded-xl text-xs border border-transparent focus:border-milktea-200 focus:outline-none focus:bg-white font-mono leading-relaxed" placeholder="格式為：姓名,電話,身分證,生日(MM-DD),繳費狀態,標籤(用|分隔)"></textarea>
+            <div class="flex space-x-2">
+                <button onclick="closeBatchModal()" class="flex-1 bg-milktea-50 text-milktea-600 font-bold py-2.5 rounded-xl text-xs">取消</button>
+                <button onclick="saveBatchImport()" class="flex-1 bg-milktea-700 text-white font-bold py-2.5 rounded-xl text-xs">確認匯入並保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6: 自訂保險商品新增 -->
+    <div id="product-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 border border-milktea-100 shadow-2xl space-y-4 fade-in">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-milktea-700">📖 上架新保險商品</h3>
+                <button onclick="closeProductModal()" class="text-milktea-400 hover:text-milktea-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="product-form" onsubmit="saveProduct(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">保險公司</label>
+                        <input type="text" id="prod-company" required placeholder="如：富邦人壽" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">類別</label>
+                        <select id="prod-category" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs">
+                            <option value="醫療險">醫療險</option>
+                            <option value="重疾/防癌">重疾/防癌</option>
+                            <option value="失能/長照">失能/長照</option>
+                            <option value="儲蓄/壽險">儲蓄/壽險</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">商品全名</label>
+                    <input type="text" id="prod-name" required placeholder="如：「守護醫生」住院醫療實支實付(HSD)" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs">
+                </div>
+                <div>
+                    <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">投保代碼/代號</label>
+                    <input type="text" id="prod-code" required placeholder="如：HSD" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs">
+                </div>
+                <div>
+                    <label class="block text-[11px] text-milktea-500 mb-1 font-semibold">核心保障亮點 (用 | 分隔)</label>
+                    <input type="text" id="prod-features" placeholder="超高門診手術額度|保額每年递增|包含住院安寧照護" class="w-full bg-milktea-50 px-3 py-2 rounded-xl text-xs">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeProductModal()" class="flex-1 bg-milktea-50 text-milktea-600 font-bold py-2.5 rounded-xl text-xs">取消</button>
+                    <button type="submit" class="flex-1 bg-milktea-700 text-white font-bold py-2.5 rounded-xl text-xs">確認上架</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- =================================== -->
+    <!--           核心邏輯與資料庫           -->
+    <!-- =================================== -->
+    <script>
+        // --- 1. 初始化資料庫 (若本地無資料則自動載入精美模擬資料) ---
+        const defaultClients = [
+            { name: "林書豪", phone: "0912-345-678", id: "A123456789", birthday: "07-01", status: "正常繳費", tags: "VIP客戶|定期儲蓄|本月壽星", memo: "高資產客戶。去年已規劃富邦儲蓄壽險，預計今年本月生日時打祝賀電話順便談年金規劃。" },
+            { name: "李阿土", phone: "0988-777-666", id: "A223456789", birthday: "07-15", status: "需續期催繳", tags: "重點追蹤|需約訪", memo: "目前保單寬限期剩餘 3 天，轉帳餘額不足需儘速催繳，避免保單失效。本週二下午已約好前往王樣咖啡店碰面。" },
+            { name: "王美麗", phone: "0955-444-333", id: "F234567890", birthday: "10-24", status: "正常繳費", tags: "理賠處理中", memo: "上月車禍輕微骨折理賠案審核中。保單健檢發現癌症險缺口較大，遞送理賠支票時可以著重切入重大傷病與防癌實支實付險。" }
+        ];
+
+        const defaultProducts = [
+            { company: "富邦人壽", name: "「守護醫生」住院醫療定期健康保險", code: "HSD", category: "醫療險", features: "門診手術全額給付|超高雜費給付額|享無理賠回饋保費優惠" },
+            { company: "國泰人壽", name: "「真好享」重大傷病定期健康保險", code: "ZHS", category: "重疾/防癌", features: "按健保重大傷病核退即賠|保障項目多達400多項|高額一次給付金" },
+            { company: "南山人壽", name: "「溢美傳承」外幣生存還本儲蓄壽險", code: "YMC", category: "儲蓄/壽險", features: "生存金每年還本給付|美元多元配置|傳承增值機制穩定" },
+            { company: "台灣人壽", name: "「真意健康」實支實付型傷害醫療住院保險", code: "ZYJK", category: "醫療險", features: "含骨折增額給付|含全天候急診保險金|實支與住院日額雙重選擇" }
+        ];
+
+        const defaultProposals = [
+            { client: "林書豪", product: "南山人壽「溢美傳承」儲蓄壽險(YMC)", premium: 120000, status: "研擬建議書" },
+            { client: "李阿土", product: "富邦人壽「守護醫生」實支實付醫療險(HSD)", premium: 35000, status: "已送建議書" },
+            { client: "王美麗", product: "國泰人壽「真好享」重大傷病險(ZHS)", premium: 42000, status: "待約定簽單" }
+        ];
+
+        const defaultDeptSettings = {
+            eventTitle: "雪梨高峰業績競賽",
+            eventDate: "2026-08-31",
+            targetA: { name: "個人累積 FYP 業績", current: 380000, max: 600000, unit: "元" },
+            targetB: { name: "團隊新增保單件數", current: 23, max: 40, unit: "件" }
+        };
+
+        // 宣告本地與雲端變數
+        let clients = JSON.parse(localStorage.getItem('yt_clients')) || defaultClients;
+        let products = JSON.parse(localStorage.getItem('yt_products')) || defaultProducts;
+        let proposals = JSON.parse(localStorage.getItem('yt_proposals')) || defaultProposals;
+        let deptSettings = JSON.parse(localStorage.getItem('yt_deptSettings')) || defaultDeptSettings;
+        let currentFilter = 'all';
+        let currentProdFilter = 'all';
+
+        // 雲端同步相關
+        let syncRoomId = localStorage.getItem('yt_sync_room_id') || "";
+        let dbRef = null;
+
+        // --- 2. 雲端同步機制 (使用免帳密 Firebase 即時同步技術) ---
+        function initCloudSync() {
+            const syncIcon = document.getElementById('sync-icon');
+            const syncText = document.getElementById('sync-status-text');
+
+            if (!syncRoomId) {
+                // 無設定代碼時只保存在本機
+                syncIcon.className = "inline-block w-2 h-2 rounded-full bg-amber-400";
+                syncText.innerText = "目前只保存在本機 (手機與電腦尚未連線同步)";
+                updateDashboardStats();
+                return;
+            }
+
+            // 若有代碼，連線至專屬同步通道
+            syncIcon.className = "inline-block animate-pulse w-2 h-2 rounded-full bg-emerald-400";
+            syncText.innerText = `已同步代碼: ${syncRoomId} (電腦與手機雙向暢通)`;
+
+            // Firebase 常規連線
+            try {
+                const firebaseConfig = {
+                    databaseURL: "https://agent-dashboard-cream-default-rtdb.firebaseio.com/" // 安全公共節點
+                };
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                
+                dbRef = firebase.database().ref(`artifacts/insurance_yatan/rooms/${syncRoomId}`);
+                
+                // 初次從雲端拉取
+                dbRef.once('value').then((snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        if (data.clients) { clients = data.clients; localStorage.setItem('yt_clients', JSON.stringify(clients)); }
+                        if (data.products) { products = data.products; localStorage.setItem('yt_products', JSON.stringify(products)); }
+                        if (data.proposals) { proposals = data.proposals; localStorage.setItem('yt_proposals', JSON.stringify(proposals)); }
+                        if (data.deptSettings) { deptSettings = data.deptSettings; localStorage.setItem('yt_deptSettings', JSON.stringify(deptSettings)); }
+                        
+                        renderAll();
+                    } else {
+                        // 雲端無資料時，上傳目前的初始資料
+                        uploadToCloud();
+                    }
+                });
+
+                // 註冊雲端即時監聽：一旦任何一端（電腦或手機）修改，另一端無痛即時刷新！
+                dbRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        clients = data.clients || clients;
+                        products = data.products || products;
+                        proposals = data.proposals || proposals;
+                        deptSettings = data.deptSettings || deptSettings;
+                        
+                        localStorage.setItem('yt_clients', JSON.stringify(clients));
+                        localStorage.setItem('yt_products', JSON.stringify(products));
+                        localStorage.setItem('yt_proposals', JSON.stringify(proposals));
+                        localStorage.setItem('yt_deptSettings', JSON.stringify(deptSettings));
+                        
+                        renderAll();
+                        const now = new Date();
+                        document.getElementById('last-sync-time').innerText = `已即時同步於 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                    }
+                });
+
+            } catch (err) {
+                console.warn("雲端建立失敗，自動安全切换至本機離線運作:", err);
+                syncIcon.className = "inline-block w-2 h-2 rounded-full bg-rose-400";
+                syncText.innerText = "雲端暫時離線 (資料仍自動安全存在手機中)";
+                updateDashboardStats();
+            }
+        }
+
+        // 將資料同步上傳雲端
+        function uploadToCloud() {
+            if (dbRef) {
+                dbRef.set({
+                    clients: clients,
+                    products: products,
+                    proposals: proposals,
+                    deptSettings: deptSettings
+                }).catch(err => console.log("同步阻滯:", err));
+            }
+        }
+
+        // 觸發設定同步帳號
+        function triggerSyncSetup() {
+            document.getElementById('sync-room-id').value = syncRoomId;
+            document.getElementById('sync-modal').classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        function saveSyncCode() {
+            const val = document.getElementById('sync-room-id').value.trim().toLowerCase();
+            if (val) {
+                syncRoomId = val;
+                localStorage.setItem('yt_sync_room_id', val);
+                closeSyncModal();
+                initCloudSync(); // 重新啟動即時同步連線
+            } else {
+                // 如果空，就清空代表單機
+                syncRoomId = "";
+                localStorage.removeItem('yt_sync_room_id');
+                dbRef = null;
+                closeSyncModal();
+                initCloudSync();
+            }
+        }
+
+        // --- 3. 頁籤切換系統 ---
+        function switchTab(tabName, customFilterValue = null) {
+            // 所有隱藏
+            document.getElementById('content-dashboard').classList.add('hidden');
+            document.getElementById('content-clients').classList.add('hidden');
+            document.getElementById('content-products').classList.add('hidden');
+            document.getElementById('content-proposals').classList.add('hidden');
+
+            // 移除所有頁籤的 Active 色
+            const tabs = ['dashboard', 'clients', 'products', 'proposals'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                btn.className = "px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white/10 text-emerald-100 hover:bg-white/20";
+            });
+
+            // 啟動點選頁
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).className = "px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shrink-0 bg-white text-[#2E4A3F] shadow-sm";
+
+            // 如果有額外過濾需求 (例如首頁點擊快速卡片導向客戶頁面)
+            if (tabName === 'clients') {
+                if (customFilterValue) {
+                    filterClients(customFilterValue);
+                } else {
+                    filterClients('all');
+                }
+            }
+        }
+
+        // --- 4. 總覽數據與倒數運算 ---
+        function updateDashboardStats() {
+            // 客戶總數
+            document.getElementById('stat-client-count').innerText = clients.length;
+
+            // 本月壽星計算
+            const currentMonthStr = "07"; // 模擬 7 月份
+            const birthdayCount = clients.filter(c => c.birthday && c.birthday.startsWith(currentMonthStr)).length;
+            document.getElementById('stat-birthday-count').innerText = birthdayCount;
+
+            // 催繳人數
+            const payCount = clients.filter(c => c.status === '需續期催繳' || c.status === '寬限期提醒').length;
+            document.getElementById('stat-payment-warning').innerText = payCount;
+
+            // 本月 FYP (取已送出與成交之累加)
+            const fypSum = proposals
+                .filter(p => p.status === '已送建議書' || p.status === '待約定簽單' || p.status === '已簽單核保')
+                .reduce((acc, curr) => acc + Number(curr.premium), 0);
+            document.getElementById('stat-fyp').innerText = `$${fypSum.toLocaleString()}`;
+
+            // 建議書總數
+            document.getElementById('stat-proposal-count').innerText = proposals.length;
+
+            // 新契約成交率
+            const totalProps = proposals.length;
+            const closedProps = proposals.filter(p => p.status === '已簽單核保').length;
+            const rate = totalProps > 0 ? Math.round((closedProps / totalProps) * 100) : 75; // 預設 75% 成交律
+            document.getElementById('stat-conversion-rate').innerText = rate;
+
+            // 更新篩選器徽章
+            document.getElementById('count-filter-all').innerText = clients.length;
+            document.getElementById('count-filter-birthday').innerText = birthdayCount;
+            document.getElementById('count-filter-need-pay').innerText = payCount;
+            document.getElementById('count-filter-focus').innerText = clients.filter(c => c.tags.includes('重點追蹤')).length;
+
+            // 渲染右下角部門活動資料
+            renderDepartmentCard();
+        }
+
+        // --- 5. 部門活動與雙季度目標渲染與自訂 ---
+        function renderDepartmentCard() {
+            // 活動標題與到期日
+            document.getElementById('display-event-title').innerText = deptSettings.eventTitle;
+            document.getElementById('display-event-date').innerText = `目標截止日期：${deptSettings.eventDate}`;
+
+            // 日期真實天數倒數計算
+            const targetDate = new Date(deptSettings.eventDate);
+            const today = new Date();
+            // 清空時分秒計算純粹差距日
+            targetDate.setHours(0,0,0,0);
+            today.setHours(0,0,0,0);
+            const diffTime = targetDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            document.getElementById('display-countdown-days').innerText = diffDays > 0 ? diffDays : 0;
+
+            // 目標 A (榛果金)
+            const ta = deptSettings.targetA;
+            document.getElementById('display-targetA-name').innerText = ta.name;
+            document.getElementById('display-targetA-current').innerText = ta.current.toLocaleString();
+            document.getElementById('display-targetA-max').innerText = ta.max.toLocaleString();
+            document.getElementById('display-targetA-unit').innerText = ta.unit;
+            const percentA = Math.min(Math.round((ta.current / ta.max) * 100), 100);
+            document.getElementById('display-targetA-bar').style.width = `${percentA}%`;
+            document.getElementById('display-targetA-percent').innerText = `${percentA}%`;
+
+            // 目標 B (蜜桃粉)
+            const tb = deptSettings.targetB;
+            document.getElementById('display-targetB-name').innerText = tb.name;
+            document.getElementById('display-targetB-current').innerText = tb.current.toLocaleString();
+            document.getElementById('display-targetB-max').innerText = tb.max.toLocaleString();
+            document.getElementById('display-targetB-unit').innerText = tb.unit;
+            const percentB = Math.min(Math.round((tb.current / tb.max) * 100), 100);
+            document.getElementById('display-targetB-bar').style.width = `${percentB}%`;
+            document.getElementById('display-targetB-percent').innerText = `${percentB}%`;
+        }
+
+        function openDepartmentSettings() {
+            document.getElementById('setup-event-title').value = deptSettings.eventTitle;
+            document.getElementById('setup-event-date').value = deptSettings.eventDate;
+
+            document.getElementById('setup-targetA-name').value = deptSettings.targetA.name;
+            document.getElementById('setup-targetA-current').value = deptSettings.targetA.current;
+            document.getElementById('setup-targetA-max').value = deptSettings.targetA.max;
+            document.getElementById('setup-targetA-unit').value = deptSettings.targetA.unit;
+
+            document.getElementById('setup-targetB-name').value = deptSettings.targetB.name;
+            document.getElementById('setup-targetB-current').value = deptSettings.targetB.current;
+            document.getElementById('setup-targetB-max').value = deptSettings.targetB.max;
+            document.getElementById('setup-targetB-unit').value = deptSettings.targetB.unit;
+
+            document.getElementById('dept-modal').classList.remove('hidden');
+        }
+
+        function closeDepartmentSettings() {
+            document.getElementById('dept-modal').classList.add('hidden');
+        }
+
+        function saveDepartmentSettings(e) {
+            e.preventDefault();
+            deptSettings = {
+                eventTitle: document.getElementById('setup-event-title').value,
+                eventDate: document.getElementById('setup-event-date').value,
+                targetA: {
+                    name: document.getElementById('setup-targetA-name').value,
+                    current: Number(document.getElementById('setup-targetA-current').value),
+                    max: Number(document.getElementById('setup-targetA-max').value),
+                    unit: document.getElementById('setup-targetA-unit').value
+                },
+                targetB: {
+                    name: document.getElementById('setup-targetB-name').value,
+                    current: Number(document.getElementById('setup-targetB-current').value),
+                    max: Number(document.getElementById('setup-targetB-max').value),
+                    unit: document.getElementById('setup-targetB-unit').value
+                }
+            };
+
+            localStorage.setItem('yt_deptSettings', JSON.stringify(deptSettings));
+            closeDepartmentSettings();
+            uploadToCloud(); // 雲端同步
+            renderDepartmentCard();
+        }
+
+        // --- 6. 客戶系統運算 (新增/編輯/批次匯入) ---
+        function filterClients(mode) {
+            currentFilter = mode;
+            const modes = ['all', 'birthday', 'need-pay', 'focus'];
+            modes.forEach(m => {
+                const btn = document.getElementById(`filter-${m}`);
+                if (m === mode) {
+                    btn.className = "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-milktea-700 text-white";
+                } else {
+                    btn.className = "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100";
+                }
+            });
+            renderClients();
+        }
+
+        function renderClients() {
+            const container = document.getElementById('clients-list-container');
+            const keyword = document.getElementById('client-search').value.toLowerCase().trim();
+            container.innerHTML = "";
+
+            let list = [...clients];
+
+            // 按分類標籤過濾
+            if (currentFilter === 'birthday') {
+                list = list.filter(c => c.birthday && c.birthday.startsWith('07')); // 模擬 7 月
+            } else if (currentFilter === 'need-pay') {
+                list = list.filter(c => c.status === '需續期催繳' || c.status === '寬限期提醒');
+            } else if (currentFilter === 'focus') {
+                list = list.filter(c => c.tags.includes('重點追蹤'));
+            }
+
+            // 按搜尋關鍵字過濾
+            if (keyword) {
+                list = list.filter(c => 
+                    c.name.toLowerCase().includes(keyword) || 
+                    c.phone.includes(keyword) || 
+                    c.tags.toLowerCase().includes(keyword)
+                );
+            }
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 bg-white rounded-2xl border border-milktea-100 text-milktea-400 text-xs">
+                        😭 查無對應的客戶資訊，請新增或調整過濾字詞
+                    </div>
+                `;
+                return;
+            }
+
+            list.forEach((client, actualIndex) => {
+                // 為標籤加上獨立美感設計
+                const tagsHTML = client.tags.split('|').filter(t => t).map(tag => {
+                    let colorClass = "bg-milktea-100 text-milktea-700";
+                    if (tag.includes('重點')) colorClass = "bg-amber-100 text-amber-800 font-bold";
+                    if (tag.includes('VIP')) colorClass = "bg-rose-100 text-rose-800 font-bold";
+                    if (tag.includes('壽星')) colorClass = "bg-purple-100 text-purple-800";
+                    return `<span class="px-2 py-0.5 rounded-md text-[10px] ${colorClass}">${tag}</span>`;
+                }).join('');
+
+                // 狀態顯示
+                let statusBadge = "bg-emerald-100 text-emerald-800";
+                if (client.status.includes('催繳')) statusBadge = "bg-rose-100 text-rose-800 animate-pulse";
+                if (client.status.includes('寬限')) statusBadge = "bg-amber-100 text-amber-800";
+
+                const clientDiv = document.createElement('div');
+                clientDiv.className = "bg-white p-4 rounded-2xl border border-milktea-100 custom-shadow flex flex-col md:flex-row md:items-center justify-between gap-4";
+                clientDiv.innerHTML = `
+                    <div class="space-y-1.5 flex-1">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="text-sm font-bold text-milktea-800">${client.name}</h4>
+                            <span class="text-xs ${statusBadge} px-2 py-0.5 rounded-full text-[10px]">${client.status}</span>
+                            <div class="flex space-x-1">${tagsHTML}</div>
+                        </div>
+                        <div class="text-[11px] text-milktea-500 space-x-4">
+                            <span>📞 電話：${client.phone}</span>
+                            <span>🎂 生日：${client.birthday || '未設定'}</span>
+                            <span>🪪 身分證：${client.id || '未設定'}</span>
+                        </div>
+                    </div>
+                    <!-- 三大快捷鍵 -->
+                    <div class="flex space-x-2 justify-end shrink-0">
+                        <button onclick="showClientMemo(${actualIndex})" class="px-3.5 py-2 rounded-xl text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-notes-medical"></i> <span>保單健檢</span>
+                        </button>
+                        <button onclick="openClientModal(${actualIndex})" class="px-3 py-2 rounded-xl text-xs bg-milktea-50 hover:bg-milktea-100 text-milktea-700 transition-colors" title="修改資料">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deleteClient(${actualIndex})" class="px-3 py-2 rounded-xl text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors" title="刪除客戶">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(clientDiv);
+            });
+        }
+
+        // 健檢彈窗
+        function showClientMemo(index) {
+            const client = clients[index];
+            document.getElementById('memo-modal-name').innerText = `${client.name} 保單健檢備忘`;
+            document.getElementById('memo-modal-content').innerText = client.memo || "目前無任何紀錄";
+            
+            // 一鍵前往編輯快捷按鈕
+            const editBtn = document.getElementById('memo-edit-shortcut-btn');
+            editBtn.onclick = () => {
+                closeMemoModal();
+                openClientModal(index);
+            };
+            
+            document.getElementById('memo-modal').classList.remove('hidden');
+        }
+
+        function closeMemoModal() {
+            document.getElementById('memo-modal').classList.add('hidden');
+        }
+
+        // 開啟新增/修改彈窗
+        function openClientModal(index = null) {
+            const title = document.getElementById('client-modal-title');
+            const form = document.getElementById('client-form');
+            form.reset();
+
+            if (index !== null) {
+                // 編輯模式
+                title.innerText = `編輯客戶：${clients[index].name}`;
+                document.getElementById('edit-client-index').value = index;
+                document.getElementById('input-client-name').value = clients[index].name;
+                document.getElementById('input-client-phone').value = clients[index].phone;
+                document.getElementById('input-client-id').value = clients[index].id || "";
+                document.getElementById('input-client-birthday').value = clients[index].birthday || "";
+                document.getElementById('input-client-status').value = clients[index].status;
+                document.getElementById('input-client-tags').value = clients[index].tags;
+                document.getElementById('input-client-memo').value = clients[index].memo || "";
+            } else {
+                // 新增模式
+                title.innerText = "新增客戶";
+                document.getElementById('edit-client-index').value = "";
+            }
+
+            document.getElementById('client-modal').classList.remove('hidden');
+        }
+
+        function closeClientModal() {
+            document.getElementById('client-modal').classList.add('hidden');
+        }
+
+        // 儲存客戶
+        function saveClient(e) {
+            e.preventDefault();
+            const idx = document.getElementById('edit-client-index').value;
+            const item = {
+                name: document.getElementById('input-client-name').value.trim(),
+                phone: document.getElementById('input-client-phone').value.trim(),
+                id: document.getElementById('input-client-id').value.trim().toUpperCase(),
+                birthday: document.getElementById('input-client-birthday').value.trim(),
+                status: document.getElementById('input-client-status').value,
+                tags: document.getElementById('input-client-tags').value.trim() || "正常往來",
+                memo: document.getElementById('input-client-memo').value.trim()
+            };
+
+            if (idx !== "") {
+                clients[idx] = item;
+            } else {
+                clients.push(item);
+            }
+
+            localStorage.setItem('yt_clients', JSON.stringify(clients));
+            closeClientModal();
+            uploadToCloud(); // 雲端同步
+            renderAll();
+        }
+
+        // 刪除客戶
+        function deleteClient(index) {
+            if (confirm(`確定要刪除「${clients[index].name}」的全部客戶資料嗎？此操作無法撤銷。`)) {
+                clients.splice(index, 1);
+                localStorage.setItem('yt_clients', JSON.stringify(clients));
+                uploadToCloud(); // 雲端同步
+                renderAll();
+            }
+        }
+
+        // 批次匯入/備份
+        function openBatchModal() {
+            // 生成文字格式
+            const listStr = clients.map(c => `${c.name},${c.phone},${c.id || ''},${c.birthday || ''},${c.status},${c.tags}`).join('\n');
+            document.getElementById('batch-text').value = listStr;
+            document.getElementById('batch-modal').classList.remove('hidden');
+        }
+
+        function closeBatchModal() {
+            document.getElementById('batch-modal').classList.add('hidden');
+        }
+
+        function saveBatchImport() {
+            const raw = document.getElementById('batch-text').value.trim();
+            if (!raw) return;
+
+            const rows = raw.split('\n');
+            const parsed = [];
+
+            try {
+                rows.forEach(row => {
+                    const cols = row.split(',');
+                    if (cols[0] && cols[1]) {
+                        parsed.push({
+                            name: cols[0].trim(),
+                            phone: cols[1].trim(),
+                            id: (cols[2] || '').trim(),
+                            birthday: (cols[3] || '').trim(),
+                            status: (cols[4] || '正常繳費').trim(),
+                            tags: (cols[5] || '一般客戶').trim(),
+                            memo: "" // 批次匯入先帶入空 memo
+                        });
+                    }
+                });
+
+                if (parsed.length > 0) {
+                    clients = parsed;
+                    localStorage.setItem('yt_clients', JSON.stringify(clients));
+                    closeBatchModal();
+                    uploadToCloud(); // 雲端同步
+                    renderAll();
+                }
+            } catch (err) {
+                alert("批次解析格式錯誤，請確保以逗號分隔。");
+            }
+        }
+
+        // --- 7. 商品百科系統 (查詢、新增與匯入建議書) ---
+        function filterProducts(cat) {
+            currentProdFilter = cat;
+            const cats = ['all', '醫療險', '重疾/防癌', '失能/長照', '儲蓄/壽險'];
+            const labels = { 'all': 'prod-all', '醫療險': 'prod-醫療', '重疾/防癌': 'prod-重疾', '失能/長照': 'prod-失能', '儲蓄/壽險': 'prod-儲蓄' };
+            
+            cats.forEach(c => {
+                const btn = document.getElementById(labels[c]);
+                if (c === cat) {
+                    btn.className = "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-milktea-700 text-white";
+                } else {
+                    btn.className = "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 bg-white text-milktea-600 border border-milktea-100 hover:bg-milktea-100";
+                }
+            });
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('products-grid-container');
+            const keyword = document.getElementById('product-search').value.toLowerCase().trim();
+            container.innerHTML = "";
+
+            let list = [...products];
+
+            if (currentProdFilter !== 'all') {
+                list = list.filter(p => p.category === currentProdFilter);
+            }
+
+            if (keyword) {
+                list = list.filter(p => 
+                    p.company.toLowerCase().includes(keyword) || 
+                    p.name.toLowerCase().includes(keyword) || 
+                    p.code.toLowerCase().includes(keyword) || 
+                    p.features.toLowerCase().includes(keyword)
+                );
+            }
+
+            list.forEach((prod, index) => {
+                const featuresHTML = prod.features.split('|').map(f => `<span class="inline-block bg-milktea-50 text-milktea-600 px-2 py-0.5 rounded text-[10px] border border-milktea-100/40">✔ ${f}</span>`).join(' ');
+                
+                // 動態取得公司特色顏色
+                let compBadge = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                if (prod.company.includes('富邦')) compBadge = "bg-sky-50 text-sky-800 border-sky-100";
+                if (prod.company.includes('國泰')) compBadge = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                if (prod.company.includes('南山')) compBadge = "bg-blue-50 text-blue-800 border-blue-100";
+
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-milktea-100 custom-shadow flex flex-col justify-between space-y-3";
+                card.innerHTML = `
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-md border ${compBadge}">${prod.company}</span>
+                                <span class="text-[10px] bg-milktea-100 text-milktea-700 px-1.5 py-0.5 rounded">${prod.category}</span>
+                            </div>
+                            <span class="text-xs font-mono font-bold text-milktea-400">${prod.code}</span>
+                        </div>
+                        <h4 class="text-xs font-bold text-milktea-800 leading-normal">${prod.name}</h4>
+                        <div class="flex flex-wrap gap-1 pt-1">${featuresHTML}</div>
+                    </div>
+                    <div class="flex space-x-2 pt-2 border-t border-milktea-50">
+                        <button onclick="importToProposal('${prod.company} ${prod.name}(${prod.code})')" class="flex-1 bg-milktea-700 text-white text-[11px] font-bold py-2 rounded-xl hover:bg-milktea-800 transition-colors flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-copy"></i> <span>一鍵規劃建議書</span>
+                        </button>
+                        <button onclick="deleteProduct(${index})" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs transition-all" title="移除此商品">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 商品百科自訂新增
+        function openProductModal() {
+            document.getElementById('product-form').reset();
+            document.getElementById('product-modal').classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        function saveProduct(e) {
+            e.preventDefault();
+            const newProd = {
+                company: document.getElementById('prod-company').value.trim(),
+                category: document.getElementById('prod-category').value,
+                name: document.getElementById('prod-name').value.trim(),
+                code: document.getElementById('prod-code').value.trim().toUpperCase(),
+                features: document.getElementById('prod-features').value.trim() || "包含多項特色"
+            };
+
+            products.push(newProd);
+            localStorage.setItem('yt_products', JSON.stringify(products));
+            closeProductModal();
+            uploadToCloud(); // 雲端同步
+            renderAll();
+        }
+
+        function deleteProduct(index) {
+            if (confirm(`確定要將此產品從百科商品庫中下架嗎？`)) {
+                products.splice(index, 1);
+                localStorage.setItem('yt_products', JSON.stringify(products));
+                uploadToCloud(); // 雲端同步
+                renderAll();
+            }
+        }
+
+        // 一鍵將百科商品帶入建議書
+        function importToProposal(fullName) {
+            switchTab('proposals');
+            document.getElementById('prop-product').value = fullName;
+            document.getElementById('prop-client').focus();
+        }
+
+        // --- 8. 建議書表單與操作邏輯 ---
+        function renderProposals() {
+            const tbody = document.getElementById('proposals-table-body');
+            tbody.innerHTML = "";
+            document.getElementById('prop-count-badge').innerText = `${proposals.length} 件追蹤中`;
+
+            proposals.forEach((prop, index) => {
+                // 狀態選項
+                const states = ["研擬建議書", "已送建議書", "待約定簽單", "已簽單核保"];
+                const options = states.map(s => `<option value="${s}" ${prop.status === s ? 'selected' : ''}>${s}</option>`).join('');
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-milktea-50/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 font-bold text-milktea-800">${prop.client}</td>
+                    <td class="py-3 text-milktea-600 max-w-[200px] truncate" title="${prop.product}">${prop.product}</td>
+                    <td class="py-3 text-right font-semibold text-milktea-700">$${Number(prop.premium).toLocaleString()}</td>
+                    <td class="py-3 text-center">
+                        <select onchange="updateProposalStatus(${index}, this.value)" class="bg-milktea-50 px-2 py-1 rounded-lg text-[10px] font-bold text-milktea-700 border border-transparent focus:outline-none focus:bg-white">
+                            ${options}
+                        </select>
+                    </td>
+                    <td class="py-3 text-center">
+                        <button onclick="deleteProposal(${index})" class="text-rose-500 hover:text-rose-700 p-1" title="刪除本追蹤件">
+                            <i class="fa-solid fa-circle-minus"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addProposal(e) {
+            e.preventDefault();
+            const client = document.getElementById('prop-client').value.trim();
+            const product = document.getElementById('prop-product').value.trim();
+            const premium = document.getElementById('prop-premium').value.trim();
+
+            const newProp = {
+                client,
+                product,
+                premium: Number(premium),
+                status: "研擬建議書"
+            };
+
+            proposals.push(newProp);
+            localStorage.setItem('yt_proposals', JSON.stringify(proposals));
+            document.getElementById('proposal-form').reset();
+            uploadToCloud(); // 雲端同步
+            renderAll();
+        }
+
+        function updateProposalStatus(index, newStatus) {
+            proposals[index].status = newStatus;
+            localStorage.setItem('yt_proposals', JSON.stringify(proposals));
+            uploadToCloud(); // 雲端同步
+            updateDashboardStats(); // 刷新總覽
+        }
+
+        function deleteProposal(index) {
+            if (confirm("確定要刪除這筆建議書追蹤紀錄嗎？")) {
+                proposals.splice(index, 1);
+                localStorage.setItem('yt_proposals', JSON.stringify(proposals));
+                uploadToCloud(); // 雲端同步
+                renderAll();
+            }
+        }
+
+        // --- 9. 綜合初始化與渲染 ---
+        function renderAll() {
+            updateDashboardStats();
+            renderClients();
+            renderProducts();
+            renderProposals();
+        }
+
+        // 網頁加載完畢後啟動
+        window.onload = function() {
+            initCloudSync();
+            renderAll();
+        };
+    </script>
+</body>
+</html>
